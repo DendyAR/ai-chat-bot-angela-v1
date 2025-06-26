@@ -14,6 +14,7 @@ export type ChatSession = {
 type ChatState = {
   sessions: ChatSession[];
   activeSessionId: string | null;
+  activeModel: string; // ✅ hanya gunakan ini
 };
 
 const loadFromLocalStorage = (): ChatState | undefined => {
@@ -41,6 +42,7 @@ const initialState: ChatState = loadFromLocalStorage() || {
     },
   ],
   activeSessionId: null,
+  activeModel: "mistralai/mistral-small-3.2-24b-instruct:free",
 };
 
 const chatSessionsSlice = createSlice({
@@ -122,6 +124,25 @@ const chatSessionsSlice = createSlice({
         saveToLocalStorage(state);
       }
     },
+    setActiveModel: (state, action: PayloadAction<string>) => {
+      state.activeModel = action.payload;
+      saveToLocalStorage(state);
+    },
+    deleteSession: (state, action: PayloadAction<string>) => {
+      state.sessions = state.sessions.filter((s) => s.id !== action.payload);
+      if (state.activeSessionId === action.payload) {
+        state.activeSessionId = state.sessions[0]?.id || null;
+      }
+      saveToLocalStorage(state);
+    },
+    resetChatState: () => {
+      localStorage.removeItem("chat-sessions"); // Hapus penyimpanan lokal
+      return {
+        sessions: [],
+        activeSessionId: null,
+        activeModel: "mistralai/mistral-small-3.2-24b-instruct:free", // atau null jika kamu ingin kosong total
+      };
+    },
   },
 });
 
@@ -132,8 +153,9 @@ export const {
   resetActiveSession,
   clearAllSessions,
   renameSession,
-  updateSessionMessage, // 👈 Tambahkan ini
+  updateSessionMessage,
+  setActiveModel, // ✅ hanya ini
+  deleteSession,
 } = chatSessionsSlice.actions;
-
 
 export default chatSessionsSlice.reducer;

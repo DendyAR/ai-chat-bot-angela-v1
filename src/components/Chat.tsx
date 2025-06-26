@@ -31,34 +31,54 @@ import {
   DialogTitle,
 } from "./ui/dialog";
 import { Card, CardContent } from "./ui/card";
+import { cn } from "@/lib/utils";
 
 export default function Chat() {
   const dispatch = useDispatch();
-  const { sessions, activeSessionId } = useSelector(
-    (state: RootState) => state.chat
-  );
+
+  const {
+    sessions,
+    activeSessionId,
+    activeModel, // ✅ model aktif
+  } = useSelector((state: RootState) => state.chat);
+
   const activeSession = sessions.find((s) => s.id === activeSessionId);
   const messages = activeSession?.messages || [];
 
   const [editing, setEditing] = useState<null | number>(null);
   const [editedText, setEditedText] = useState("");
-
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Buat session jika belum ada
   useEffect(() => {
     if (!activeSessionId) {
       dispatch(addSession());
     }
   }, [activeSessionId, dispatch]);
 
+  // Auto scroll ke bawah saat ada pesan baru
+  useEffect(() => {
+    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, [input]);
+
   const sendMessage = async () => {
-    if (!input.trim() || !activeSessionId) return;
-
     const userMsg = input.trim();
+    if (!userMsg || !activeSessionId) return;
 
+    // Tambahkan pesan user
     dispatch(
       addMessageToSession({
         sessionId: activeSessionId,
@@ -66,6 +86,7 @@ export default function Chat() {
       })
     );
 
+    // Rename sesi jika pesan pertama
     if (messages.length === 0) {
       const preview =
         userMsg.length > 30 ? userMsg.slice(0, 30) + "..." : userMsg;
@@ -76,36 +97,29 @@ export default function Chat() {
     setLoading(true);
 
     try {
-      const reply = await askToOpenRouter(userMsg);
+      // Kirim ke OpenRouter dengan model dinamis
+      const reply = await askToOpenRouter(userMsg, activeModel);
+
       dispatch(
         addMessageToSession({
           sessionId: activeSessionId,
           message: { role: "ai", content: reply },
         })
       );
-    } catch {
+    } catch (err) {
       dispatch(
         addMessageToSession({
           sessionId: activeSessionId,
-          message: { role: "ai", content: "❌ Gagal menjawab." },
+          message: {
+            role: "ai",
+            content: "❌ Gagal menjawab.",
+          },
         })
       );
     } finally {
       setLoading(false);
     }
   };
-
-  useEffect(() => {
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  useEffect(() => {
-    const textarea = textareaRef.current;
-    if (textarea) {
-      textarea.style.height = "auto";
-      textarea.style.height = `${textarea.scrollHeight}px`;
-    }
-  }, [input]);
 
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
@@ -134,11 +148,12 @@ export default function Chat() {
 
               {/* Bubble */}
               <Card
-                className={`relative w-fit max-w-[80%] md:max-w-[65ch] rounded-xl shadow-none pt-10 ${
+                className={cn(
+                  "relative w-fit max-w-[80%] md:max-w-[65ch] min-w-[152px] rounded-xl shadow-none pt-10",
                   msg.role === "user"
                     ? "bg-white text-black dark:bg-[#1e1e20] dark:text-white ml-auto"
                     : "bg-[#f7f7f8] text-black dark:bg-[#2a2b32] dark:text-white"
-                }`}
+                )}
               >
                 {/* Action Buttons */}
                 <div className="absolute top-2 right-3 flex space-x-1">
@@ -202,7 +217,7 @@ export default function Chat() {
                 </div>
 
                 {/* Markdown Content */}
-                <CardContent className="prose dark:prose-invert prose-p:my-2 prose-pre:my-3 prose-pre:rounded-lg max-w-none px-5 py-4 md:px-6 md:py-5 leading-relaxed text-left text-base">
+                <CardContent className="prose dark:prose-invert px-6 py-4 md:px-6 md:py-5 leading-relaxed text-base max-w-none">
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
                     rehypePlugins={[rehypeHighlight]}
@@ -317,18 +332,27 @@ export default function Chat() {
           />
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditing(null)}>
+            <Button
+              variant="outline"
+              onClick={() => setEditing(null)}
+              disabled={loading}
+            >
               Batal
             </Button>
+
             <Button
               onClick={async () => {
-                if (editing !== null && activeSessionId) {
-                  // Update pesan user di Redux
+                if (
+                  editing !== null &&
+                  activeSessionId &&
+                  editedText.trim() !== ""
+                ) {
+                  // Update pesan di Redux
                   dispatch(
                     updateSessionMessage({
                       sessionId: activeSessionId,
                       messageIndex: editing,
-                      newContent: editedText,
+                      newContent: editedText.trim(),
                     })
                   );
 
@@ -336,8 +360,11 @@ export default function Chat() {
                   setLoading(true);
 
                   try {
-                    // Kirim ulang ke AI
-                    const aiReply = await askToOpenRouter(editedText);
+                    // Kirim ulang ke AI dengan model aktif
+                    const aiReply = await askToOpenRouter(
+                      editedText.trim(),
+                      activeModel
+                    );
 
                     dispatch(
                       addMessageToSession({
@@ -360,8 +387,9 @@ export default function Chat() {
                   }
                 }
               }}
+              disabled={loading || editedText.trim() === ""}
             >
-              Simpan & Kirim Ulang
+              {loading ? "Mengirim..." : "Simpan & Kirim Ulang"}
             </Button>
           </DialogFooter>
         </DialogContent>
