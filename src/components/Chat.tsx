@@ -30,7 +30,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./ui/dialog";
-import { Separator } from "./ui/separator";
 import { Card, CardContent } from "./ui/card";
 
 export default function Chat() {
