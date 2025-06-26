@@ -4,7 +4,7 @@ export async function askToOpenRouter(prompt: string, model: string) {
     headers: {
       Authorization: `Bearer ${import.meta.env.VITE_OPENROUTER_API_KEY}`,
       "Content-Type": "application/json",
-      "HTTP-Referer": "http://localhost:5173", // ganti saat produksi
+      "HTTP-Referer": "https://ai-chat-bot-angela-v1.vercel.app/", // ganti saat produksi
       "X-Title": "My Chatbot App",
     },
     body: JSON.stringify({
